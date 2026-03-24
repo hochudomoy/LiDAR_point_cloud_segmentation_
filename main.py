@@ -1,5 +1,6 @@
 from velodyne_utils import read_velodyne_bin, read_label_file, metrics
-from visualization import visualization_2D, visualization_3D
+from visualization import visualization_2D, visualization_3D, gif_2D, gif_3D
+from boundaries_extracting import extract_curb
 import ground_filtering
 import SalsaNext.inference
 import SegFormer.inference
@@ -15,6 +16,12 @@ test_folders = [
 ]
 ground_classes=[40, 44, 48, 49]#40: "road" 44: "parking" 48: "sidewalk" 49: "other-ground"]
 results=[]
+gif_lidar=[]
+gif_preds=[]
+gif_curbs=[]
+max_gif_frames=1
+model = SegFormer.inference.load_model()
+
 for folder in test_folders:
     files=os.listdir(folder)
     miou, f1, precision, recall, total_time = 0, 0, 0, 0, 0
@@ -26,11 +33,12 @@ for folder in test_folders:
         gt_mask = np.isin(class_labels, list(ground_classes))
         start = time.time()
         geometric_pred = ground_filtering.ground_neighbours_grid_filter(lidar_df)
-        _,prob = SalsaNext.inference.SalsaNext(lidar_df)
-        end = time.time()
+        pred, prob = SegFormer.inference.SegFormer(lidar_df, model)
         final_pred = geometric_pred
-        final_pred[prob > 0.9] = 1
-        final_pred[prob < 0.1] = 0
+        final_pred[prob > 0.75] = 1
+        ground_points = lidar_df[final_pred]
+        curb_points, curb_lines = extract_curb(ground_points)
+        end = time.time()
 
         total_time += (end - start)
         metric = metrics(final_pred, gt_mask)
@@ -38,7 +46,13 @@ for folder in test_folders:
         f1 += metric[1]
         precision += metric[2]
         recall += metric[3]
-        break
+
+        seq = folder.split('\\')[-2]
+        if seq == '07' and len(gif_lidar) < max_gif_frames:
+            gif_lidar.append(lidar_df)
+            gif_preds.append(final_pred)
+            gif_curbs.append(curb_lines)
+
     n = len(files)
     results.append([folder.split('\\')[-2], miou / n, f1 / n, precision / n, recall / n, total_time / n])
     df = pd.DataFrame(results, columns=[
@@ -51,8 +65,10 @@ for folder in test_folders:
     ])
 print(df)
 
-visualization_2D(lidar_df, color=final_pred)
-visualization_3D(lidar_df, final_pred)
+visualization_2D(lidar_df, curb_lines,color=final_pred)
+visualization_3D(lidar_df, final_pred,curb_lines)
 
+gif_2D(gif_lidar,gif_preds,gif_curbs)
+gif_3D(gif_lidar,gif_preds,gif_curbs)
 
 
