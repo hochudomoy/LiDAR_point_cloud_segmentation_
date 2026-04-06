@@ -4,6 +4,7 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.interpolate import splprep, splev
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA
 def extract_curb(ground_points, height_threshold=[0.05, 0.3], slope_threshold=0.02, k_neighbors=10,
                             block_size=5,cross_width=0.02, eps=0.7, min_samples=7):
     """1) Облако точек разбивается на блоки по оси X
@@ -97,4 +98,73 @@ def extract_curb(ground_points, height_threshold=[0.05, 0.3], slope_threshold=0.
     all_curb_points = pd.concat(all_curb_points)
     return all_curb_points, all_lines
 
+def split_by_distance(points, max_dist=2.0):
+    lines = []
+    current = [points[0]]
+    for i in range(1, len(points)):
+        dist = np.linalg.norm(points[i] - points[i-1])
+
+        if dist < max_dist:
+            current.append(points[i])
+        else:
+            if len(current) > 3:
+                lines.append(np.array(current))
+            current = [points[i]]
+    if len(current) > 3:
+        lines.append(np.array(current))
+    return lines
+def extract_border(road_points):
+    '''1) С помощью SegFormer сегментируем дорогу
+       2) Затем в плоскости XY с помощью метода главных компонент находим ось дороги и нормаль к ней
+       3) Центрируем точки и переводим в новую систему координат(s - сдвиг вдоль дороги, t - отклонение от центра дороги)
+       4) Вдоль оси s разделяем дорогу на сечения, в каждом сечении находим минимальную и максимальную точку отклонения от центра, соответсвенно кандидаты на левую и правую границы)
+       5) Переводим точки обратно в систему координат XY
+       6) Разделяем точки на линии, по расстоянию между точками'''
+    road_points = road_points.to_numpy()
+    pca = PCA(n_components=2)
+    pca.fit(road_points[:, :2])
+
+    direction = pca.components_[0]
+    normal = pca.components_[1]
+    origin = road_points[:, :2].mean(axis=0)
+
+    xy = road_points[:, :2] - origin
+
+    s = xy @ direction
+    t = xy @ normal
+    bins = np.linspace(s.min(), s.max(), 100)
+
+    left_boundary = []
+    right_boundary = []
+
+    for i in range(len(bins) - 1):
+        mask = (s >= bins[i]) & (s < bins[i + 1])
+        if mask.sum() < 10:
+            continue
+
+        idx = np.where(mask)[0]
+
+        t_slice = t[idx]
+
+        left_idx = idx[np.argmin(t_slice)]
+        right_idx = idx[np.argmax(t_slice)]
+
+        left_boundary.append((road_points[left_idx][0], road_points[left_idx][1], road_points[left_idx][2]))
+        right_boundary.append((road_points[right_idx][0], road_points[right_idx][1], road_points[right_idx][2]))
+
+    left_boundary = np.array(left_boundary)
+    right_boundary = np.array(right_boundary)
+
+    left_xy = left_boundary[np.argsort(left_boundary[:, 0])]
+    right_xy = right_boundary[np.argsort(right_boundary[:, 0])]
+    left_lines = split_by_distance(left_xy, max_dist=2.0)
+    right_lines = split_by_distance(right_xy, max_dist=2.0)
+    lines = left_lines + right_lines
+    coords_list=[]
+    for line in lines:
+        xs = line[:, 0]
+        ys = line[:, 1]
+        zs = line[:, 2]
+        coords_list.append((xs, ys, zs))
+    return coords_list
 
