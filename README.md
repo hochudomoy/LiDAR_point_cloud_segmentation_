@@ -18,14 +18,12 @@
 
 - --input_folder — путь к папке с .bin 
 
-- --type_of_vizualization — тип визуализации 
+- --type_of_vizualization — тип визуализации Варианты:{2D_gif, 3D_gif, 2D_paint, 3D_paint}
 
-Варианты: {2D_gif, 3D_gif, 2D_paint, 3D_paint}
+- --ground_segmentation  - способ сегментации плоскости (по умолчанию RANSAC) {RANSAC, grid_RANSAC, DBSCAN, Neighbours_grid_filter, iterative_filter, SalsaNext, SegFormer, combined}
 
-- --ground_segmentation {RANSAC, grid_RANSAC, DBSCAN, Neighbours_grid_filter, iterative_filter, SalsaNext, SegFormer, combined} - способ сегментации плоскости (по умолчанию RANSAC)
+- --boundaries_segmentation - способ сегментации границ (по умолчанию extract_curb)  {extract_curb, extract_border, false}
 
-- --boundaries_segmentation {extract_curb, extract_border, false} - способ сегментации границ (по умолчанию extract_curb)
-
-- --markings_segmentation {true/false} - сегментация дорожной разметки (по умолчанию true)
+- --markings_segmentation - сегментация дорожной разметки (по умолчанию true) {true/false}
 
 - --gif_frames` — количество кадров (по умолчанию 1)
