@@ -8,11 +8,11 @@
 ## Использование
 1) Установка зависимостей
 
-    pip install -r requirements.txt
+    ```pip install -r requirements.txt```
 
 2) Команда для запуска
 
-    python main.py --input_folder <путь к папке с .bin файлами > --type_of_vizualization 2D_gif 
+    ```python main.py --input_folder <путь к папке с .bin файлами > --type_of_vizualization 2D_gif```
 
 ## Аргументы
 
