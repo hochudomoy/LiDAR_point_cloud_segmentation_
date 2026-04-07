@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from range_image import range_image, spherical_projection
 
-def load_model():
+def load_model(type):
     model = SegformerForSemanticSegmentation.from_pretrained(
         "nvidia/segformer-b0-finetuned-ade-512-512"
     )
@@ -18,8 +18,14 @@ def load_model():
     model.segformer.encoder.patch_embeddings[0].proj = new_patch_embed
     model.decode_head.classifier = nn.Conv2d(256, 2, kernel_size=1)
 
-    model.load_state_dict(torch.load(
+    if (type=='ground'):
+        model.load_state_dict(torch.load(
         "C:\\Users\\User\\LiDAR_point_cloud_segmentation\\SegFormer\\SegFormer_ground.pth",
+        map_location='cpu'
+    ))
+    else:
+        model.load_state_dict(torch.load(
+        "C:\\Users\\User\\LiDAR_point_cloud_segmentation\\SegFormer\\SegFormer_road.pth",
         map_location='cpu'
     ))
     model.eval()

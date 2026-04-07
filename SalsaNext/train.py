@@ -6,8 +6,10 @@ from qai_hub_models.models.salsanext import Model
 import tqdm
 from range_image import range_image,spherical_projection
 import os
+import numpy as np
+from velodyne_utils import read_velodyne_bin, read_label_file
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+ground_classes=['40','44','48','49']
 class KITTI_LiDAR(Dataset):
     def __init__(self, sequences=['01', '02', '03'], data_root='C:\\Users\\User\\LiDAR_point_cloud_segmentation'):
         self.files = []

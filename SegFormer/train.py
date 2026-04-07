@@ -6,6 +6,8 @@ from torch.utils.data import Dataset, DataLoader
 import tqdm
 from range_image import range_image,spherical_projection
 import os
+import numpy as np
+from velodyne_utils import read_velodyne_bin, read_label_file
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class KITTI_LiDAR(Dataset):
@@ -34,14 +36,12 @@ class KITTI_LiDAR(Dataset):
         lidar_file, label_file = self.files[idx]
         xyz = read_velodyne_bin(lidar_file)
         labels = read_label_file(label_file)
-        binary_labels = np.isin(labels, ground_classes).astype(np.int64)
+        binary_labels = np.isin(labels, self.ground_classes).astype(np.int64)
         u, v, r = spherical_projection(xyz)
         label_img = np.zeros((64, 2048), dtype=np.int64)
         for i in range(len(binary_labels)):
             label_img[v[i], u[i]] = binary_labels[i]
         input_img = range_image(xyz)
-
-        ri = range_image(xyz)
         factor_H = 64 // self.target_H
         factor_W = 2048 // self.target_W
         small_label = label_img[::factor_H, ::factor_W]
@@ -65,7 +65,8 @@ def train():
 
     dataset = KITTI_LiDAR()
     loader = DataLoader(dataset, batch_size=16)
-
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(Segformer.parameters(), lr=0.01)
     num_epochs = 3
     Segformer.train().to(device)
     for epoch in range(num_epochs):
@@ -84,5 +85,4 @@ def train():
             loader_iter.set_postfix(loss=loss.item())
 
         print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss / len(loader):.4f}")
-        torch.save(model.state_dict(), 'SegFormer_ground.pth')
-
+        torch.save(Segformer.state_dict(), 'SegFormer_ground.pth')
