@@ -5,14 +5,19 @@ import imageio.v2 as imageio
 from io import BytesIO
 import plotly.io as pio
 
-def visualization_2D(lidar_df,spline_coords_list=None,color=None):
-    if color is not None: color=np.asarray(color, dtype=np.float32)
-    else: color=lidar_df['intensity']
+
+def visualization_2D(lidar_df, spline_coords_list=None, markings=None, color=None):
+    if color is not None:
+        color = np.asarray(color, dtype=np.float32)
+    else:
+        color = lidar_df['intensity']
     fig = plt.figure(figsize=(10, 10))
     plt.scatter(-lidar_df['x'], -lidar_df['y'], c=color, s=1)
     if spline_coords_list is not None:
         for i, (xs, ys, zs) in enumerate(spline_coords_list):
             plt.plot(-xs, -ys, c='red', lw=2)
+    if markings is not None:
+        plt.scatter(-markings['x'], -markings['y'], c='orange', s=1)
     plt.grid()
     plt.xlabel('x, m', fontsize=26)
     plt.ylabel('y, m', fontsize=26)
@@ -21,10 +26,13 @@ def visualization_2D(lidar_df,spline_coords_list=None,color=None):
     plt.yticks(fontsize=26)
     plt.show()
 
-def visualization_3D(xyz,labels=None,curb_lines=None):
+
+def visualization_3D(xyz, labels=None, curb_lines=None, markings=None):
     xyz = np.asarray(xyz, dtype=np.float32)
-    if labels is not None: color=np.asarray(labels, dtype=np.float32)
-    else: color=xyz[:, 2]
+    if labels is not None:
+        color = np.asarray(labels, dtype=np.float32)
+    else:
+        color = xyz[:, 2]
     data = []
     data.append(go.Scatter3d(
         x=xyz[:, 0],
@@ -45,9 +53,21 @@ def visualization_3D(xyz,labels=None,curb_lines=None):
                 y=ys,
                 z=zs,
                 mode='lines',
-                line=dict(color='blue',width=8),
+                line=dict(color='blue', width=8),
                 showlegend=False
             ))
+    if markings is not None:
+        data.append(go.Scatter3d(
+            x=markings['x'],
+            y=markings['y'],
+            z=markings['z'],
+            mode='markers',
+            marker=dict(
+                size=2,
+                color='orange',
+            )
+        ))
+
     fig = go.Figure(data=data)
     fig.update_layout(
         scene=dict(aspectmode='data'),
@@ -57,37 +77,39 @@ def visualization_3D(xyz,labels=None,curb_lines=None):
     fig.show()
 
 
-def gif_2D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None):
+def gif_2D(sequence_lidar_df, sequence_preds, sequence_curb_lines=None, markings=None, ):
     frames = []
-    for i,(lidar_df,pred) in enumerate(zip(sequence_lidar_df,sequence_preds)):
-        color = np.where(pred==1,'green','red')
-        fig = plt.figure(figsize=(8,8))
+    for i, (lidar_df, pred) in enumerate(zip(sequence_lidar_df, sequence_preds)):
+        color = np.where(pred == 1, 'green', 'red')
+        fig = plt.figure(figsize=(8, 8))
         plt.scatter(-lidar_df['x'], -lidar_df['y'], c=color, s=1)
         if sequence_curb_lines is not None:
             curb_lines = sequence_curb_lines[i]
             for xs, ys, zs in curb_lines:
                 plt.plot(-xs, -ys, c='blue', linewidth=2)
-        plt.xlim(-50,50)
-        plt.ylim(-50,50)
+        if markings is not None:
+            plt.scatter(-markings[i]['x'], -markings[i]['y'], c='orange', s=1)
+        plt.xlim(-50, 50)
+        plt.ylim(-50, 50)
         plt.grid()
         fig.canvas.draw()
         img = np.array(fig.canvas.renderer.buffer_rgba())
-        img = img[:,:,:3]
+        img = img[:, :, :3]
         frames.append(img)
         plt.close()
-    imageio.mimsave("ground_segmentation_2D.gif",frames,fps=10,loop=0)
+    imageio.mimsave("segmentation_2D.gif", frames, fps=10, loop=0)
     print("2D GIF saved")
 
-def gif_3D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None,fps=10,max_points=40000):
 
+def gif_3D(sequence_lidar_df, sequence_preds, sequence_curb_lines=None, markings=None, fps=10, max_points=40000):
     frames = []
     all_xyz = np.concatenate([
-        df[['x','y','z']].to_numpy() for df in sequence_lidar_df
+        df[['x', 'y', 'z']].to_numpy() for df in sequence_lidar_df
     ])
 
-    x_min, x_max = all_xyz[:,0].min(), all_xyz[:,0].max()
-    y_min, y_max = all_xyz[:,1].min(), all_xyz[:,1].max()
-    z_min, z_max = all_xyz[:,2].min(), all_xyz[:,2].max()
+    x_min, x_max = all_xyz[:, 0].min(), all_xyz[:, 0].max()
+    y_min, y_max = all_xyz[:, 1].min(), all_xyz[:, 1].max()
+    z_min, z_max = all_xyz[:, 2].min(), all_xyz[:, 2].max()
 
     dx = x_max - x_min
     dy = y_max - y_min
@@ -95,16 +117,16 @@ def gif_3D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None,fps=10,max
     scale = max(dx, dy, dz)
 
     aspectratio = dict(
-        x=dx/scale,
-        y=dy/scale,
-        z=dz/scale
+        x=dx / scale,
+        y=dy / scale,
+        z=dz / scale
     )
 
     camera = dict(eye=dict(x=0.3, y=0.3, z=0.3))
 
     for i, (lidar_df, pred) in enumerate(zip(sequence_lidar_df, sequence_preds)):
 
-        xyz = lidar_df[['x','y','z']].to_numpy()
+        xyz = lidar_df[['x', 'y', 'z']].to_numpy()
         color = np.where(pred == 1, 1, 0)
 
         if len(xyz) > max_points:
@@ -114,11 +136,11 @@ def gif_3D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None,fps=10,max
 
         if len(xyz) == 0:
             continue
-        data=[]
+        data = []
         data.append(go.Scatter3d(
-            x=xyz[:,0],
-            y=xyz[:,1],
-            z=xyz[:,2],
+            x=xyz[:, 0],
+            y=xyz[:, 1],
+            z=xyz[:, 2],
             mode='markers',
             marker=dict(
                 size=1,
@@ -136,6 +158,17 @@ def gif_3D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None,fps=10,max
                     mode='lines',
                     line=dict(color='blue', width=8),
                     showlegend=False
+                ))
+        if markings is not None:
+                data.append(go.Scatter3d(
+                    x=markings[i]['x'],
+                    y=markings[i]['y'],
+                    z=markings[i]['z'],
+                    mode='markers',
+                    marker=dict(
+                        size=2,
+                        color='orange',
+                    )
                 ))
         fig = go.Figure(data=data)
         fig.update_layout(
@@ -159,8 +192,8 @@ def gif_3D(sequence_lidar_df, sequence_preds,sequence_curb_lines=None,fps=10,max
         img = imageio.imread(BytesIO(img_bytes))
         frames.append(img)
 
-        print(f"Frame {i+1}")
+        if (i+1)%10 ==0: print(f"Frame {i + 1}")
 
-    imageio.mimsave("ground_segmentation_3D.gif",frames, fps=fps, loop=0)
+    imageio.mimsave("segmentation_3D.gif", frames, fps=fps, loop=0)
 
     print(f"3D GIF saved")
